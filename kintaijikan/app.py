@@ -26,6 +26,8 @@ def load_csv_data(uploaded_file, usecols):
             df = pd.read_csv(uploaded_file, encoding='shift_jis', header=5, usecols=usecols)
             df = df[df.iloc[:, 0] != '合計']  # 合計行を除外
             return df
+        else:
+            return None
     except Exception as e:
         st.error(f'ファイル読み込みエラー: {e}')
         return None
@@ -40,6 +42,8 @@ def load_excel_data(uploaded_file):
             workbook = load_workbook(memory)
             sheet = workbook.worksheets[0] # 最初のシートを取得
             return workbook, sheet
+        else :
+            return None, None
     except Exception as e:
         st.error(f'ファイル読み込みエラー: {e}')
         return None, None
@@ -69,10 +73,12 @@ def download_updated_file(workbook, file_name):
                        file_name=f'更新された{file_name}.xlsx',
                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-# クリアボタンの処理
-def handle_clear():
-    """クリアボタンの動作でファイルの準備状態をリセット"""
-    st.session_state.file_ready = False
+def handle_clear_download():
+    """ダウンロード済みのファイルリンクをクリアする動作"""
+    for key in ['touki_csv', 'zenki_csv', 'worktime_xlsx', 'overtime_xlsx']:
+        if key in st.session_state:
+            del st.session_state[key]
+
     st.experimental_rerun()
     
 def main():
@@ -80,24 +86,41 @@ def main():
     selected_month = st.selectbox('月を選択してください', [f'{i}月' for i in range(1, 13)])
     touki, zenki, worktime, overtime = upload_files()
 
+    # フラグの初期化
     if 'file_ready' not in st.session_state:
-        st.session_state.file_ready = False
-        
-    if st.button('実行') and not st.session_state.file_ready:
+        st.session_state['file_ready'] = False
+    if 'execute_clicked' not in st.session_state:
+        st.session_state['execute_clicked'] = False
+    if 'clear_visible' not in st.session_state:
+        st.session_state['clear_visible'] = False
+
+    if st.button('実行'):
+
+
+        # 入力チェック
         if not touki and not zenki:
             st.error('当期勤怠ファイル、前期勤怠ファイルを選択してください。')
             return
         if not worktime and not overtime:
             st.error('総労働時間ファイル、時間外労働ファイルを選択してください。')
             return
-
+        
+        # 実行ボタンがクリックされたことを記録
+        st.session_state.execute_clicked = True
         st.session_state.file_ready = True
-        st.experimental_rerun()
-
-    if st.session_state.file_ready:
-        # データの読み込みとシートの更新
+        st.session_state.clear_visible = True  # クリアボタンを表示する
         process_worksheets(touki, zenki, worktime, overtime, selected_month)
-        st.button('クリア', on_click=handle_clear)
+
+
+    # クリアボタンの表示と処理
+    if st.session_state.file_ready and st.session_state.clear_visible:
+       if st.button('ダウンロードファイルクリア'):
+            # クリア時にフラグをリセット
+            st.session_state.file_ready = False
+            st.session_state.execute_clicked = False
+            st.session_state.clear_visible = False
+            handle_clear_download()
+            
 
 def process_worksheets(touki, zenki, worktime, overtime, selected_month):
     """ファイルからデータを読み込み、Excelシートを更新後、ダウンロードします。"""
