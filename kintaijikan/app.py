@@ -13,9 +13,18 @@ def upload_files():
        対応ファイル形式: CSV ('当期勤怠', '前期勤怠'), Excel ('総労働時間', '時間外労働')"""
     touki = st.file_uploader('当期勤怠ファイルの読み込み', type='csv', key='touki_csv')
     zenki = st.file_uploader('前期勤怠ファイルの読み込み', type='csv', key='zenki_csv')
-    worktime = st.file_uploader('総労働時間ファイルの読み込み', type='xlsx', key='worktime_xlsx')
-    overtime = st.file_uploader('時間外労働ファイルの読み込み', type='xlsx', key='overtime_xlsx')
-    return touki, zenki, worktime, overtime
+    # ラジオボタンで使用する選択肢のリスト
+    options = ['総労働時間', '時間外労働']
+    selected_option = st.radio("設定するファイル種別を選択してください",options, index=0)
+    # 選択されたオプションのインデックスを取得
+    selected_index = options.index(selected_option)
+    output_file = None
+    if selected_index == 0:
+        output_file = st.file_uploader('総労働時間ファイルの読み込み', type='xlsx', key='worktime_xlsx')
+    elif selected_index == 1:
+        output_file = st.file_uploader('時間外労働ファイルの読み込み', type='xlsx', key='overtime_xlsx')
+
+    return touki, zenki, selected_index, output_file
 
 def load_csv_data(uploaded_file, usecols):
     """共通関数
@@ -48,10 +57,14 @@ def load_excel_data(uploaded_file):
         st.error(f'ファイル読み込みエラー: {e}')
         return None, None
 
-def update_excel_sheet(account_period, workbook, sheet, data, selected_month):
+def update_excel_sheet(account_period, output_type, sheet, df, selected_month):
     """Excelファイルのシートを更新する共通関数
         指定された月に対応する列を更新し、Excelシートにデータを反映"""
-
+    if output_type == 0:
+        data = df.set_index('社員CD')["総労働時間"].to_dict()
+    elif output_type == 1:
+        data = df.set_index('社員CD')["残業"].to_dict()
+        
     headers = [cell.value for cell in sheet[2]] # ヘッダー情報を取得
     month_col = headers.index(selected_month) + 1     # 更新する列番号を特定
     for i, row in enumerate(sheet.iter_rows(min_row=3, min_col=1, max_col=sheet.max_column), start=3):
@@ -73,78 +86,54 @@ def download_updated_file(workbook, file_name):
                        file_name=f'更新された{file_name}.xlsx',
                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-def handle_clear_download():
-    """ダウンロード済みのファイルリンクをクリアする動作"""
-    for key in ['touki_csv', 'zenki_csv', 'worktime_xlsx', 'overtime_xlsx']:
-        if key in st.session_state:
-            del st.session_state[key]
-
-    st.experimental_rerun()
-    
 def main():
     set_page()
     selected_month = st.selectbox('月を選択してください', [f'{i}月' for i in range(1, 13)])
-    touki, zenki, worktime, overtime = upload_files()
-
-    # フラグの初期化
-    if 'file_ready' not in st.session_state:
-        st.session_state['file_ready'] = False
-    if 'execute_clicked' not in st.session_state:
-        st.session_state['execute_clicked'] = False
-    if 'clear_visible' not in st.session_state:
-        st.session_state['clear_visible'] = False
+    touki, zenki, output_type, output_file = upload_files()
 
     if st.button('実行'):
-
 
         # 入力チェック
         if not touki and not zenki:
             st.error('当期勤怠ファイル、前期勤怠ファイルを選択してください。')
             return
-        if not worktime and not overtime:
-            st.error('総労働時間ファイル、時間外労働ファイルを選択してください。')
-            return
+        if not output_file:
+            if output_type == 0:
+                st.error('総労働時間ファイルを選択してください。')
+                return
+            elif output_type == 1:
+                st.error('時間外労働ファイルを選択してください。')
+                return        
         
-        # 実行ボタンがクリックされたことを記録
-        st.session_state.execute_clicked = True
-        st.session_state.file_ready = True
-        st.session_state.clear_visible = True  # クリアボタンを表示する
-        process_worksheets(touki, zenki, worktime, overtime, selected_month)
+        process_files(touki, zenki, output_type, output_file, selected_month)
 
 
-    # クリアボタンの表示と処理
-    if st.session_state.file_ready and st.session_state.clear_visible:
-       if st.button('ダウンロードファイルクリア'):
-            # クリア時にフラグをリセット
-            st.session_state.file_ready = False
-            st.session_state.execute_clicked = False
-            st.session_state.clear_visible = False
-            handle_clear_download()
-            
+def process_files(touki, zenki,  output_type, output_file, selected_month):
+    """ファイルからデータを読み込み、適切に処理し、ダウンロードを提供します。"""
+    file_name = None
+    if output_type == 0:
+        # 社員CD, 総労働時間列を読み込む
+        df_touki = load_csv_data(touki, [0, 12])
+        df_zenki = load_csv_data(zenki, [0, 12])
+    elif output_type == 1:
+        # 社員CD, 残業時間列を読み込む
+        df_touki = load_csv_data(touki, [0, 11])
+        df_zenki = load_csv_data(zenki, [0, 11])
 
-def process_worksheets(touki, zenki, worktime, overtime, selected_month):
-    """ファイルからデータを読み込み、Excelシートを更新後、ダウンロードします。"""
-    df_touki = load_csv_data(touki, [0, 11, 12])  # '社員CD', '残業','総労働時間'列
-    df_zenki = load_csv_data(zenki, [0, 11, 12])  # '社員CD', '残業','総労働時間'列
-    workbook_worktime, sheet_worktime = load_excel_data(worktime)
-    workbook_overtime, sheet_overtime = load_excel_data(overtime)
+    workbook, sheet = load_excel_data(output_file)
+    update_and_download(workbook, sheet, df_touki, df_zenki, output_type, selected_month)
 
-    # 総労働時間の更新とダウンロード
-    if workbook_worktime:
-        update_and_download(workbook_worktime, sheet_worktime, df_touki, df_zenki, "総労働時間", selected_month)
-    # 時間外労働の更新とダウンロード
-    if workbook_overtime:
-        update_and_download(workbook_overtime, sheet_overtime, df_touki, df_zenki, "残業", selected_month)
 
-def update_and_download(workbook, sheet, df_touki, df_zenki, file_label, month):
+
+def update_and_download(workbook, sheet, df_touki, df_zenki, output_type, month):
     """データフレームからデータを抽出し、シートを更新してファイルをダウンロードします。"""
     if df_touki is not None:
-        touki_data = df_touki.set_index('社員CD')[file_label].to_dict()
-        update_excel_sheet("当期", workbook, sheet, touki_data, month)
+        file_name = "総労働時間"
+        update_excel_sheet("当期", output_type, sheet, df_touki, month)
     if df_zenki is not None:
-        zenki_data = df_zenki.set_index('社員CD')[file_label].to_dict()
-        update_excel_sheet("前期", workbook, sheet, zenki_data, month)
-    download_updated_file(workbook, file_label)
+        file_name = "時間外労働"
+        update_excel_sheet("前期", output_type, sheet, df_zenki, month)
+    download_updated_file(workbook, file_name)
 
 if __name__ == "__main__":
     main()
