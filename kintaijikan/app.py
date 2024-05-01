@@ -98,7 +98,6 @@ def main():
 
 def process_files(touki, zenki,  selected_option, output_file, selected_month):
     """ファイルからデータを読み込み、適切に処理し、ダウンロードを提供します。"""
-    file_name = None
     if selected_option == "総労働時間":
         # 社員CD, 総労働時間列を読み込む
         df_touki = load_csv_data(touki, [0, 12])
