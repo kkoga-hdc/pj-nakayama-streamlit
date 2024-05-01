@@ -14,17 +14,12 @@ def upload_files():
     touki = st.file_uploader('当期勤怠ファイルの読み込み', type='csv', key='touki_csv')
     zenki = st.file_uploader('前期勤怠ファイルの読み込み', type='csv', key='zenki_csv')
     # ラジオボタンで使用する選択肢のリスト
-    options = ['総労働時間', '時間外労働']
+    options = ['総労働時間', '残業']
     selected_option = st.radio("設定するファイル種別を選択してください",options, index=0)
-    # 選択されたオプションのインデックスを取得
-    selected_index = options.index(selected_option)
-    output_file = None
-    if selected_index == 0:
-        output_file = st.file_uploader('総労働時間ファイルの読み込み', type='xlsx', key='worktime_xlsx')
-    elif selected_index == 1:
-        output_file = st.file_uploader('時間外労働ファイルの読み込み', type='xlsx', key='overtime_xlsx')
 
-    return touki, zenki, selected_index, output_file
+    output_file = st.file_uploader(f'{selected_option}ファイルの読み込み', type='xlsx', key='output_xlsx')
+
+    return touki, zenki, selected_option, output_file
 
 def load_csv_data(uploaded_file, usecols):
     """共通関数
@@ -57,13 +52,10 @@ def load_excel_data(uploaded_file):
         st.error(f'ファイル読み込みエラー: {e}')
         return None, None
 
-def update_excel_sheet(account_period, output_type, sheet, df, selected_month):
+def update_excel_sheet(account_period, selected_option, sheet, df, selected_month):
     """Excelファイルのシートを更新する共通関数
         指定された月に対応する列を更新し、Excelシートにデータを反映"""
-    if output_type == 0:
-        data = df.set_index('社員CD')["総労働時間"].to_dict()
-    elif output_type == 1:
-        data = df.set_index('社員CD')["残業"].to_dict()
+    data = df.set_index('社員CD')[selected_option].to_dict()
         
     headers = [cell.value for cell in sheet[2]] # ヘッダー情報を取得
     month_col = headers.index(selected_month) + 1     # 更新する列番号を特定
@@ -89,7 +81,7 @@ def download_updated_file(workbook, file_name):
 def main():
     set_page()
     selected_month = st.selectbox('月を選択してください', [f'{i}月' for i in range(1, 13)])
-    touki, zenki, output_type, output_file = upload_files()
+    touki, zenki, selected_option, output_file = upload_files()
 
     if st.button('実行'):
 
@@ -98,42 +90,37 @@ def main():
             st.error('当期勤怠ファイル、前期勤怠ファイルを選択してください。')
             return
         if not output_file:
-            if output_type == 0:
-                st.error('総労働時間ファイルを選択してください。')
-                return
-            elif output_type == 1:
-                st.error('時間外労働ファイルを選択してください。')
-                return        
+            st.error(f'{selected_option}ファイルを選択してください。')
+            return
         
-        process_files(touki, zenki, output_type, output_file, selected_month)
+        process_files(touki, zenki, selected_option, output_file, selected_month)
 
 
-def process_files(touki, zenki,  output_type, output_file, selected_month):
+def process_files(touki, zenki,  selected_option, output_file, selected_month):
     """ファイルからデータを読み込み、適切に処理し、ダウンロードを提供します。"""
     file_name = None
-    if output_type == 0:
+    if selected_option == "総労働時間":
         # 社員CD, 総労働時間列を読み込む
         df_touki = load_csv_data(touki, [0, 12])
         df_zenki = load_csv_data(zenki, [0, 12])
-    elif output_type == 1:
+    elif selected_option == "残業":
         # 社員CD, 残業時間列を読み込む
         df_touki = load_csv_data(touki, [0, 11])
         df_zenki = load_csv_data(zenki, [0, 11])
 
     workbook, sheet = load_excel_data(output_file)
-    update_and_download(workbook, sheet, df_touki, df_zenki, output_type, selected_month)
+    update_and_download(workbook, sheet, df_touki, df_zenki, selected_option, selected_month)
 
 
 
-def update_and_download(workbook, sheet, df_touki, df_zenki, output_type, month):
+def update_and_download(workbook, sheet, df_touki, df_zenki, selected_option, month):
     """データフレームからデータを抽出し、シートを更新してファイルをダウンロードします。"""
     if df_touki is not None:
-        file_name = "総労働時間"
-        update_excel_sheet("当期", output_type, sheet, df_touki, month)
+        update_excel_sheet("当期", selected_option, sheet, df_touki, month)
     if df_zenki is not None:
-        file_name = "時間外労働"
-        update_excel_sheet("前期", output_type, sheet, df_zenki, month)
-    download_updated_file(workbook, file_name)
+        update_excel_sheet("前期", selected_option, sheet, df_zenki, month)
+
+    download_updated_file(workbook, selected_option)
 
 if __name__ == "__main__":
     main()
