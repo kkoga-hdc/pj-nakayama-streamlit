@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from datetime import timedelta
 from openpyxl import load_workbook
 from io import BytesIO
 
@@ -29,12 +30,30 @@ def load_csv_data(uploaded_file, usecols):
         if uploaded_file is not None:
             df = pd.read_csv(uploaded_file, encoding='shift_jis', header=5, usecols=usecols)
             df = df[df.iloc[:, 0] != '合計']  # 合計行を除外
+            # 時間形式(hh:mm形式)を分単位に変換し、新たな列に格納
+            df['minutes'] = df.iloc[:, 1].apply(convert_time_to_minutes)
             return df
         else:
             return None
     except Exception as e:
         st.error(f'ファイル読み込みエラー: {e}')
         return None
+
+def convert_time_to_minutes(time_str):
+    """
+    時間の形式の文字列（例: 'hh:mm'）を受け取り、それを分単位の整数に変換する関数。
+    Args:
+        time_str (str): コロン ':' で区切られた時間と分の形式の文字列。
+    Returns:
+        int: 指定された時間を分単位で表した整数。時間データが不適切な場合は0を返す。
+    """
+    if isinstance(time_str, str) and ':' in time_str:
+        hours, minutes = map(int, time_str.split(':'))  # 時間と分を分けて整数に変換
+        total_minutes = hours * 60 + minutes  # 全体の時間を分に換算
+        return total_minutes
+    else:
+        # 非適切なデータは0分として扱う
+        return 0
 
 def load_excel_data(uploaded_file):
     """共通関数
@@ -52,20 +71,52 @@ def load_excel_data(uploaded_file):
         st.error(f'ファイル読み込みエラー: {e}')
         return None, None
 
-def update_excel_sheet(account_period, selected_option, sheet, df, selected_month):
+def update_excel_sheet(account_period, sheet, df, selected_month):
     """Excelファイルのシートを更新する共通関数
         指定された月に対応する列を更新し、Excelシートにデータを反映"""
-    data = df.set_index('社員CD')[selected_option].to_dict()
+        
+    # 1列目(社員CD)をキーに辞書型に変換
+    dict_df = df.set_index(df.columns[0]).to_dict(orient='index')
         
     headers = [cell.value for cell in sheet[2]] # ヘッダー情報を取得
     month_col = headers.index(selected_month) + 1     # 更新する列番号を特定
+   
+   # sheetをループして、data辞書の社員CDと一致する行を検索して更新
+    total_minutes  = 0
     for i, row in enumerate(sheet.iter_rows(min_row=3, min_col=1, max_col=sheet.max_column), start=3):
         employee_cd = row[0].value
-        if employee_cd in data:
+        if employee_cd in dict_df:
             # 会社員CDと担当者CDが一致する場合
             # 前期の場合は同一行、当期の場合は一行下
             row_index = i if account_period == "前期" else i + 1
-            sheet.cell(row=row_index, column=month_col).value = data[employee_cd]
+            sheet.cell(row=row_index, column=month_col).value = dict_df[employee_cd][df.columns[1]]
+            total_minutes += dict_df[employee_cd][df.columns[2]]
+
+    # # data辞書をループし、シートの社員CDと一致する行を検索して更新
+    # for employee_cd, minutes in data.items():
+    #     for row in sheet.iter_rows(min_row=3, min_col=1, max_col=1):  # 社員CD列だけ走査
+    #         if row[0].value == employee_cd:
+    #             # 前期の場合は同一行、当期の場合は一行下
+    #             row_index = row[0].row if account_period == "前期" else row[0].row + 1
+    #             sheet.cell(row=row_index, column=month_col).value = format_minutes_to_time(minutes)
+    #             total_minutes += minutes
+    #             break  # 社員CDが一致したのでループを抜ける          
+            
+    if total_minutes > 0:        
+        formatted_time = format_minutes_to_time(total_minutes)
+        employee_cd = "999999"
+        for row in sheet.iter_rows(min_row=3, min_col=1, max_col=1):
+            if row[0].value == employee_cd:
+                # 前期の場合は同一行、当期の場合は一行下
+                row_index = row[0].row if account_period == "前期" else row[0].row + 1
+                sheet.cell(row=row_index, column=month_col).value = formatted_time
+                break  # 合計行が更新されたのでループを抜ける
+
+def format_minutes_to_time(total_minutes):
+    """累計分を時間の形式（hh:mm）にフォーマットする関数。"""
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    return f"{hours:02}:{minutes:02}"
 
 def download_updated_file(workbook, file_name):
     """ダウンロードボタンを設置する共通関数
@@ -115,9 +166,9 @@ def process_files(touki, zenki,  selected_option, output_file, selected_month):
 def update_and_download(workbook, sheet, df_touki, df_zenki, selected_option, month):
     """データフレームからデータを抽出し、シートを更新してファイルをダウンロードします。"""
     if df_touki is not None:
-        update_excel_sheet("当期", selected_option, sheet, df_touki, month)
+        update_excel_sheet("当期", sheet, df_touki, month)
     if df_zenki is not None:
-        update_excel_sheet("前期", selected_option, sheet, df_zenki, month)
+        update_excel_sheet("前期", sheet, df_zenki, month)
 
     download_updated_file(workbook, selected_option)
 
