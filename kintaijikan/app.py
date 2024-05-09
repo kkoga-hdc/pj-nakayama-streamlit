@@ -49,8 +49,8 @@ def convert_time_to_minutes(time_str):
     """
     if isinstance(time_str, str) and ':' in time_str:
         hours, minutes = map(int, time_str.split(':'))  # 時間と分を分けて整数に変換
-        total_minutes = hours * 60 + minutes  # 全体の時間を分に換算
-        return total_minutes
+        total_month_minutes = hours * 60 + minutes  # 全体の時間を分に換算
+        return total_month_minutes
     else:
         # 非適切なデータは0分として扱う
         return 0
@@ -80,9 +80,11 @@ def update_excel_sheet(account_period, sheet, df, selected_month):
         
     headers = [cell.value for cell in sheet[2]] # ヘッダー情報を取得
     month_col = headers.index(selected_month) + 1     # 更新する列番号を特定
+    total_individual_col = headers.index("個人別合計") + 1 
    
    # sheetをループして、data辞書の社員CDと一致する行を検索して更新
-    total_minutes  = 0
+    total_month_minutes  = 0
+    # total_individual_minutes = 0
     for i, row in enumerate(sheet.iter_rows(min_row=3, min_col=1, max_col=sheet.max_column), start=3):
         employee_cd = row[0].value
         if employee_cd in dict_df:
@@ -90,7 +92,12 @@ def update_excel_sheet(account_period, sheet, df, selected_month):
             # 前期の場合は同一行、当期の場合は一行下
             row_index = i if account_period == "前期" else i + 1
             sheet.cell(row=row_index, column=month_col).value = dict_df[employee_cd][df.columns[1]]
-            total_minutes += dict_df[employee_cd][df.columns[2]]
+            total_month_minutes += dict_df[employee_cd][df.columns[2]]    # 月別時間累積
+            # wk_total_individual_time = (sheet.cell(row=row_index, column=total_individual_col).value).total_seconds()
+            # min, sec = divmod(wk_total_individual_time, 60)
+            # total_individual_time = dict_df[employee_cd][df.columns[2]] + int(min) # 個人別時間合計に当該別個人別時間を加算
+            # sheet.cell(row=row_index, column=total_individual_col).value = format_minutes_to_time(total_individual_time)    # 個人別時間合計
+            # total_individual_minutes += total_individual_time
 
     # # data辞書をループし、シートの社員CDと一致する行を検索して更新
     # for employee_cd, minutes in data.items():
@@ -99,23 +106,25 @@ def update_excel_sheet(account_period, sheet, df, selected_month):
     #             # 前期の場合は同一行、当期の場合は一行下
     #             row_index = row[0].row if account_period == "前期" else row[0].row + 1
     #             sheet.cell(row=row_index, column=month_col).value = format_minutes_to_time(minutes)
-    #             total_minutes += minutes
+    #             total_month_minutes += minutes
     #             break  # 社員CDが一致したのでループを抜ける          
             
-    if total_minutes > 0:        
-        formatted_time = format_minutes_to_time(total_minutes)
+    if total_month_minutes > 0:        
+        formatted_month_time = format_minutes_to_time(total_month_minutes)
+        # formatted_individual_time = format_minutes_to_time(total_individual_minutes)
         employee_cd = "999999"
         for row in sheet.iter_rows(min_row=3, min_col=1, max_col=1):
             if row[0].value == employee_cd:
                 # 前期の場合は同一行、当期の場合は一行下
                 row_index = row[0].row if account_period == "前期" else row[0].row + 1
-                sheet.cell(row=row_index, column=month_col).value = formatted_time
+                sheet.cell(row=row_index, column=month_col).value = formatted_month_time
+                # sheet.cell(row=row_index, column=total_individual_col).value = formatted_individual_time
                 break  # 合計行が更新されたのでループを抜ける
 
-def format_minutes_to_time(total_minutes):
+def format_minutes_to_time(total_month_minutes):
     """累計分を時間の形式（hh:mm）にフォーマットする関数。"""
-    hours = total_minutes // 60
-    minutes = total_minutes % 60
+    hours = total_month_minutes // 60
+    minutes = total_month_minutes % 60
     return f"{hours:02}:{minutes:02}"
 
 def download_updated_file(workbook, file_name):
