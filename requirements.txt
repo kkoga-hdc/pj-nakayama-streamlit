@@ -20,9 +20,11 @@ numpy==1.26.4
 openpyxl==3.1.2
 packaging==24.0
 pandas==2.2.2
-pillow==10.3.0
+# pillow==10.3.0
+pillow
 protobuf==4.25.3
-pyarrow==16.0.0
+# pyarrow==16.0.0
+pyarrow
 pydeck==0.8.1b0
 Pygments==2.17.2
 python-dateutil==2.9.0.post0
@@ -30,7 +32,8 @@ pytz==2024.1
 referencing==0.34.0
 requests==2.31.0
 rich==13.7.1
-rpds-py==0.18.0
+# rpds-py==0.18.0
+rpds-py
 setuptools==68.2.2
 six==1.16.0
 smmap==5.0.1
