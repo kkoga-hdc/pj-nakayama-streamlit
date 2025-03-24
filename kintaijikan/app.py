@@ -6,7 +6,7 @@ from io import BytesIO
 from smtplib import SMTP
 from email.mime.text import MIMEText
 from email.utils import formatdate
-from config import *
+# from config import *
 
 def set_page():
     """ページの基本設定"""
@@ -142,30 +142,30 @@ def download_updated_file(workbook, file_name):
                        file_name=f'更新された{file_name}.xlsx',
                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-def send_mail():
-    """メール設定"""
+# def send_mail():
+#     """メール設定"""
     
-    # SMTPサーバの設定をsecretsから取得
-    smtp_server = st.secrets["smtp"]["server"]
-    smtp_port = st.secrets["smtp"]["port"]
-    smtp_user = st.secrets["smtp"]["user"]
-    smtp_password = st.secrets["smtp"]["password"]
+#     # SMTPサーバの設定をsecretsから取得
+#     smtp_server = st.secrets["smtp"]["server"]
+#     smtp_port = st.secrets["smtp"]["port"]
+#     smtp_user = st.secrets["smtp"]["user"]
+#     smtp_password = st.secrets["smtp"]["password"]
 
-    # メール内容の作成
-    send_msg = "勤怠時間設定サービス使用メール\r\n"
-    message = MIMEText(send_msg, "plain", "utf-8")
-    message["Subject"] = USE_MAIL_SUBJECT
-    message["From"] = USE_MAIL_FROM
-    message["To"] = ",".join(USE_MAIL_TO)
-    message['Date'] = formatdate()
+#     # メール内容の作成
+#     send_msg = "勤怠時間設定サービス使用メール\r\n"
+#     message = MIMEText(send_msg, "plain", "utf-8")
+#     message["Subject"] = USE_MAIL_SUBJECT
+#     message["From"] = USE_MAIL_FROM
+#     message["To"] = ",".join(USE_MAIL_TO)
+#     message['Date'] = formatdate()
     
-    # SMTPサーバに接続してメール送信
-    with SMTP(smtp_server, smtp_port) as server:
-        server.ehlo()  # EHLOコマンドで挨拶
-        server.starttls()  # TLSを使用して通信を暗号化
-        server.ehlo()  # 再度EHLO
-        server.login(smtp_user, smtp_password)  # SMTPサーバにログイン
-        server.send_message(message)  # メール送信
+#     # SMTPサーバに接続してメール送信
+#     with SMTP(smtp_server, smtp_port) as server:
+#         server.ehlo()  # EHLOコマンドで挨拶
+#         server.starttls()  # TLSを使用して通信を暗号化
+#         server.ehlo()  # 再度EHLO
+#         server.login(smtp_user, smtp_password)  # SMTPサーバにログイン
+#         server.send_message(message)  # メール送信
 
 def main():
     set_page()
@@ -213,6 +213,8 @@ def update_and_download(workbook, sheet, df_touki, df_zenki, selected_option, mo
 if __name__ == "__main__":
     main()
 
-    if 'send_mail' not in st.session_state:
-        send_mail()
-        st.session_state['send_mail'] = 'complete'
+    # アプリにアクセスしてなくても無限にメールがきてしまうため
+    # コメントアウト
+    # if 'send_mail' not in st.session_state:
+    #     send_mail()
+    #     st.session_state['send_mail'] = 'complete'
